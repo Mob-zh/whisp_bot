@@ -46,6 +46,7 @@ void move_proc(void);
 void celiang_proc(void);
 void yizhu_proc(void);
 void Box_proc(void);
+void sensor_proc(void);
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -147,81 +148,38 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		//L610初始化
 		if(L610_sta<=4){
 			L610_HW_init();
-			if(L610_sta == 4)  {
+			if(L610_sta == 4){
 				sprintf(txBuffer2,"j0.val=100\xff\xff\xff");
 				HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
 				HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
 				HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
-
 			}
-			
+
 		}
 		else{
-				if(L610_sta == 5)  {
+
+			if(L610_sta == 5){
 				sprintf(txBuffer2,"j0.val=100\xff\xff\xff");
 				HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
 				L610_sta  = 6;
 			}
-					//进度条
-//			printf("%d",cmd.move);
-				
-			  move_proc();
-				yizhu_proc();
-				Box_proc();
-			 if(celiang_flag == 1){	
-					cmd.move = 0;
-					move_proc();
-//测温度
-					int i = 10;
-				
-				 while(i>0){
-					temp = GY906_ReadTemp();
-//				printf("%.1f\n",temp);
-					sprintf(txBuffer2,"x0.val=%d\xff\xff\xff",(int)(temp*1.2f*10));
-					HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
-					HW_HMSUB_1_temp("Whisp_dev1",temp*1.2f);
+			//进度条
+			//printf("%d",cmd.move);
 
-
-//测血氧
-					Max30102_Calculate_HR_BO_Value(&HR_Value,&HR_Valid,&BO_Value,&BO_Valid);
-//					printf("%.1f %d %d %d %d\n",temp,HR_Value,HR_Valid,BO_Value,BO_Valid);
-					//求均值
-					if(HR_Valid && BO_Valid){
-					avg_HR_VAL[AHV_p] = HR_Value;
-					avg_BO_VAL[BOV_p] = BO_Value;
-				
-					avg_HR += avg_HR_VAL[AHV_p];
-					avg_BO += avg_BO_VAL[BOV_p];
-					
-					BOV_p++;
-					AHV_p++;
-
-					i--;	
-					}
-				}
-				int H = avg_HR/10;
-				if(H > 100) H = 76;
-				
-				HW_HMSUB_1("Whisp_dev1",temp*1.2f,H,avg_BO/10);//(不上云会卡死)
-				sprintf(txBuffer2,"x0.val=%d\xff\xff\xff",(int)(temp*1.2f*10));
-				HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
-
-				sprintf(txBuffer2,"n1.val=%d\xff\xff\xff",(int)H);
-				HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
-
-				sprintf(txBuffer2,"n2.val=%d\xff\xff\xff",(int)avg_BO/10);
-				HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
-				
-				avg_HR = 0;
-				avg_BO = 0;
-				BOV_p = 0;
-				AHV_p = 0;
-				celiang_flag = 0;
+			//工作进程
+			move_proc();
+			yizhu_proc();
+			Box_proc();
+			
+			if(celiang_flag == 1){
+				cmd.move = 0;
+				move_proc();
+				sensor_proc();
 			}
-			 
-		
+			
 		}
 		
 	
@@ -283,6 +241,56 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
+void sensor_proc(void){
+	
+	//测温度
+	int i = 10;
+
+	while(i>0){
+		temp = GY906_ReadTemp();
+		//printf("%.1f\n",temp);
+		sprintf(txBuffer2,"x0.val=%d\xff\xff\xff",(int)(temp*1.2f*10));
+		HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
+		HW_HMSUB_1_temp("Whisp_dev1",temp*1.2f);
+
+
+		//测血氧
+		Max30102_Calculate_HR_BO_Value(&HR_Value,&HR_Valid,&BO_Value,&BO_Valid);
+		//printf("%.1f %d %d %d %d\n",temp,HR_Value,HR_Valid,BO_Value,BO_Valid);
+		//求均值
+		if(HR_Valid && BO_Valid){
+			avg_HR_VAL[AHV_p] = HR_Value;
+			avg_BO_VAL[BOV_p] = BO_Value;
+
+			avg_HR += avg_HR_VAL[AHV_p];
+			avg_BO += avg_BO_VAL[BOV_p];
+
+			BOV_p++;
+			AHV_p++;
+
+			i--;	
+		}
+	}
+	int H = avg_HR/10;
+	if(H > 100) H = 76;
+
+	HW_HMSUB_1("Whisp_dev1",temp*1.2f,H,avg_BO/10);//(不上云会卡死)
+	sprintf(txBuffer2,"x0.val=%d\xff\xff\xff",(int)(temp*1.2f*10));
+	HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
+
+	sprintf(txBuffer2,"n1.val=%d\xff\xff\xff",(int)H);
+	HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
+
+	sprintf(txBuffer2,"n2.val=%d\xff\xff\xff",(int)avg_BO/10);
+	HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
+
+	avg_HR = 0;
+	avg_BO = 0;
+	BOV_p = 0;
+	AHV_p = 0;
+	celiang_flag = 0;
+}
+
 void move_proc(void){
 	  
 		if(cmd.move == 4){
@@ -305,9 +313,9 @@ void move_proc(void){
 }
 void yizhu_proc(void){
 
-		sprintf(txBuffer2,"t0.txt=\"%s\"\xff\xff\xff",cmd.yizhu);
-		HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
-		last_yizhu = cmd.yizhu;
+	sprintf(txBuffer2,"t0.txt=\"%s\"\xff\xff\xff",cmd.yizhu);
+	HAL_UART_Transmit(&huart2,(uint8_t*)txBuffer2,strlen(txBuffer2),1000);
+	last_yizhu = cmd.yizhu;
 	
 }
 void Box_proc(void){
